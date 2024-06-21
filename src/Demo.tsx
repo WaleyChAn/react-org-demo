@@ -363,49 +363,104 @@ const Demo = () => {
   const setNodesLevel = (data: any) => {
     const { rootId, nodes, lines } = data
     const rootNode = { ...nodes.find((n: any) => n.id === rootId) }
+    let drawNodes = []
     if (rootNode) {
       rootNode.level = 0
       sortCount = -1
       sortLevel = 0
-      const sortList = setNodesSorting(rootNode, nodes, lines)
-      // console.log(sortList)
+      drawNodes.push([{ ...rootNode }])
+      const nodesTree = getNodesTree(rootNode, nodes, lines)
+      const sortList = setNodesSorting(nodes, lines, drawNodes, 1)
+      let offsetMark = [0, 0, 0, 0]
+      sortList.reverse().forEach((list: any, lIndex: number) => {
+        let centerMark = [0, 0]
+        list.forEach((node: any, nIndex: number) => {
+          const currentNode = nodes.find((cNode: any) => cNode.id === node.id)
+          const currentParentNode = nodes.find(
+            (n: any) => n.id === node.parentId
+          )
+
+          const lastListNode = list[nIndex - 1]
+          const nextListNode = list[nIndex + 1]
+          if (!lastListNode || lastListNode.parentId !== node.parentId) {
+            centerMark[0] = currentNode.x
+          }
+
+          if (!nextListNode || nextListNode.parentId !== node.parentId) {
+            centerMark[1] = currentNode.x
+
+            if (currentParentNode) {
+              currentParentNode.x = (centerMark[1] + centerMark[0]) / 2
+              centerMark = [0, 0]
+            }
+          }
+
+          if (currentNode.x <= offsetMark[0]) {
+            offsetMark[0] = currentNode.x
+          }
+
+          if (currentNode.x + currentNode.width > offsetMark[1]) {
+            offsetMark[1] = currentNode.x + currentNode.width
+          }
+
+          if (currentNode.y <= offsetMark[2]) {
+            offsetMark[2] = currentNode.y
+          }
+
+          if (currentNode.y + currentNode.height > offsetMark[3]) {
+            offsetMark[3] = currentNode.y + currentNode.height
+          }
+        })
+      })
+
+      const treeWidth = offsetMark[1] - offsetMark[0]
+      const treeHeight = offsetMark[3] - offsetMark[2]
+      const { width: canvasWidth, height: canvasHeight } = canvasConfig
+      const offsetX = (canvasWidth - treeWidth) / 2
+      const offsetY = (canvasHeight - treeHeight) / 2
+      nodes.map((node: any) => {
+        node.x = node.x + offsetX
+        node.y = node.y + offsetY
+        return node
+      })
     }
   }
 
   // 重新排序
-  // const setNodesSorting: any = (
-  //   nodes: any,
-  //   lines: any,
-  //   nodesList: any,
-  //   level: number
-  // ) => {
-  //   const lastNodes = nodesList[level - 1]
-  //   let currentNodes: any[] = []
-  //   if (lastNodes) {
-  //     lastNodes.forEach((node: any) => {
-  //       lines.forEach((line: any) => {
-  //         if (line.from === node.id) {
-  //           const currentNode = nodes.find((node: any) => node.id === line.to)
-  //           const childrenLength = lines.filter(
-  //             (n: any) => n.from === currentNode.id
-  //           )
-  //           if (currentNode) {
-  //             currentNode.level = level
-  //             currentNode.parentId = node.id
-  //             currentNode.childrenLength = childrenLength.length
-  //             currentNodes.push(currentNode)
-  //           }
-  //         }
-  //       })
-  //     })
-  //     if (currentNodes.length > 0) {
-  //       nodesList.push(currentNodes)
-  //       return setNodesSorting(nodes, lines, nodesList, level + 1)
-  //     }
-  //     return nodesList
-  //   }
-  // }
-  const setNodesSorting: any = (node: any, nodes: any, lines: any) => {
+  const setNodesSorting: any = (
+    nodes: any,
+    lines: any,
+    nodesList: any,
+    level: number
+  ) => {
+    const lastNodes = nodesList[level - 1]
+    let currentNodes: any[] = []
+    if (lastNodes) {
+      lastNodes.forEach((node: any) => {
+        lines.forEach((line: any) => {
+          if (line.from === node.id) {
+            const currentNode = {
+              ...nodes.find((node: any) => node.id === line.to),
+            }
+
+            if (currentNode) {
+              currentNode.level = level
+              currentNode.parentId = node.id
+              currentNodes.push(currentNode)
+            }
+          }
+        })
+      })
+      if (currentNodes.length > 0) {
+        nodesList.push(currentNodes)
+        return setNodesSorting(nodes, lines, nodesList, level + 1)
+      }
+      return nodesList
+    }
+  }
+
+  // 获取树结构数据第一次定位
+  const getNodesTree: any = (node: any, nodes: any, lines: any) => {
     const children: any = []
     const childrenLines = lines.filter((line: any) => line.from === node.id)
     if (node.level <= sortLevel) {
@@ -414,7 +469,6 @@ const Demo = () => {
     sortLevel = node.level
     node.crossLevel = sortCount
 
-    // console.log(node.level + '-' + node.id, sortCount)
     const {
       width: itemWidth,
       height: itemHeight,
@@ -441,7 +495,7 @@ const Demo = () => {
       }
     })
     node.children = children.map((cNode: any) => {
-      return setNodesSorting(cNode, nodes, lines)
+      return getNodesTree(cNode, nodes, lines)
     })
     return node
   }
